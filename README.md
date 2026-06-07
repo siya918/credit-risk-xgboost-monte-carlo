@@ -156,5 +156,3 @@ limiting practical impact.
 | Applications requiring manual review | 7.7% |
 
 ---
-
-## Repository Structure
