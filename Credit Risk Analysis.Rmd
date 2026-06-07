@@ -1,0 +1,655 @@
+---
+title: "Credit Risk Analysis"
+author: "SIYABONGA MAHLANGU"
+date: "`r Sys.Date()`"
+output: word_document
+---
+
+
+```{r}
+
+library(readr)
+library(ggplot2)
+library(patchwork)
+library(corrplot)
+library(fastDummies)
+library(xgboost)
+library(caret)
+library(pROC)
+
+```
+
+
+```{r}
+
+df <- read_csv("credit_risk_dataset.csv")
+
+```
+
+
+
+```{r}
+
+dim <- dim(df)
+str <- str(df)
+summary <- summary(df)
+missing <- colSums(is.na(df))
+tv_view <- table(df$loan_status)
+
+```
+
+```{r}
+
+p1 <- ggplot(df, aes(x = person_income)) +
+  geom_histogram(fill = "steelblue", bins = 30) +
+  labs(title = "Person Income")
+
+p2 <- ggplot(df, aes(x = loan_amnt)) +
+  geom_histogram(fill = "darkorange", bins = 30) +
+  labs(title = "Loan Amount")
+
+p3 <- ggplot(df, aes(x = loan_int_rate)) +
+  geom_histogram(fill = "forestgreen", bins = 30) +
+  labs(title = "Loan Interest Rate")
+
+p4 <- ggplot(df, aes(x = loan_percent_income)) +
+  geom_histogram(fill = "purple", bins = 30) +
+  labs(title = "Loan Percent Income")
+
+p5 <- ggplot(df, aes(x = person_emp_length)) +
+  geom_histogram(fill = "firebrick", bins = 30) +
+  labs(title = "Employment Length")
+
+p6 <- ggplot(df, aes(x = cb_person_cred_hist_length)) +
+  geom_histogram(fill = "navy", bins = 30) +
+  labs(title = "Credit History Length")
+
+p7 <- ggplot(df, aes(x = person_age)) +
+  geom_histogram(fill = "goldenrod") +
+  labs(title = "Age", x = "Age")
+
+(p1 | p2 | p3) /
+  (p4 | p5 | p6) /
+  (p7)
+
+```
+
+```{r}
+
+p1 <- ggplot(df, aes(x = factor(loan_status), y = person_income)) +
+  geom_boxplot(fill = "steelblue") +
+  labs(title = "Income vs Default", x = "Loan Status")
+
+p2 <- ggplot(df, aes(x = factor(loan_status), y = loan_amnt)) +
+  geom_boxplot(fill = "darkorange") +
+  labs(title = "Loan Amount vs Default", x = "Loan Status")
+
+p3 <- ggplot(df, aes(x = factor(loan_status), y = loan_int_rate)) +
+  geom_boxplot(fill = "forestgreen") +
+  labs(title = "Interest Rate vs Default", x = "Loan Status")
+
+p4 <- ggplot(df, aes(x = factor(loan_status), y = loan_percent_income)) +
+  geom_boxplot(fill = "purple") +
+  labs(title = "Percent Income vs Default", x = "Loan Status")
+
+p5 <- ggplot(df, aes(x = factor(loan_status), y = person_emp_length)) +
+  geom_boxplot(fill = "firebrick") +
+  labs(title = "Employment Length vs Default", x = "Loan Status")
+
+p6 <- ggplot(df, aes(x = factor(loan_status), y = cb_person_cred_hist_length)) +
+  geom_boxplot(fill = "navy") +
+  labs(title = "Credit History vs Default", x = "Loan Status")
+
+p7 <- ggplot(df, aes(x = factor(loan_status), y = person_age)) +
+  geom_boxplot(fill = "goldenrod") +
+  labs(title = "Age vs Default", x = "Loan Status")
+
+(p1 | p2 | p3) /
+  (p4 | p5 | p6) /
+  (p7)
+
+```
+
+```{r}
+
+p1 <- ggplot(df, aes(x = person_home_ownership)) +
+  geom_bar(fill = "steelblue") +
+  labs(title = "Home Ownership") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p2 <- ggplot(df, aes(x = loan_intent)) +
+  geom_bar(fill = "darkorange") +
+  labs(title = "Loan Intent") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p3 <- ggplot(df, aes(x = loan_grade)) +
+  geom_bar(fill = "forestgreen") +
+  labs(title = "Loan Grade") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p4 <- ggplot(df, aes(x = cb_person_default_on_file)) +
+  geom_bar(fill = "firebrick") +
+  labs(title = "Historical Default") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# If you want a 5th and 6th slot filled (optional placeholders or repeats)
+p5 <- ggplot(df, aes(x = loan_grade)) +
+  geom_bar(fill = "purple") +
+  labs(title = "Loan Grade (Alt View)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p6 <- ggplot(df, aes(x = person_home_ownership)) +
+  geom_bar(fill = "navy") +
+  labs(title = "Home Ownership (Alt View)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+(p1 | p2 | p3) /
+  (p4 | p5 | p6)
+
+```
+
+```{r}
+
+p1 <- ggplot(df, aes(x = loan_status)) +
+  geom_bar(fill = "navy") +
+  labs(title = "Loan Status") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+p2 <- ggplot(df, aes(x = loan_grade, fill = factor(loan_status))) +
+  geom_bar(position = "fill") +
+  labs(title = "Default Rate by Loan Grade", y = "Proportion", fill = "Default")
+
+p3 <- ggplot(df, aes(x = loan_intent, fill = factor(loan_status))) +
+  geom_bar(position = "fill") +
+  labs(title = "Default Rate by Loan Intent", y = "Proportion") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+(p1 | p2 | p3) 
+
+```
+
+```{r}
+
+df$loan_status <- factor(df$loan_status, levels = c(0, 1), labels = c("No Default", "Default"))
+
+p1 <- ggplot(df, aes(x = person_income, y = loan_amnt, color = loan_status)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  scale_color_manual(values = c("No Default" = "steelblue", "Default" = "firebrick")) +
+  labs(title = "Income vs Loan Amount", color = "Status")
+
+p2 <- ggplot(df, aes(x = loan_int_rate, y = loan_amnt, color = loan_status)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  scale_color_manual(values = c("No Default" = "steelblue", "Default" = "firebrick")) +
+  labs(title = "Interest Rate vs Loan Amount", color = "Status")
+
+p3 <- ggplot(df, aes(x = loan_percent_income, y = loan_amnt, color = loan_status)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  scale_color_manual(values = c("No Default" = "steelblue", "Default" = "firebrick")) +
+  labs(title = "Percent Income vs Loan Amount", color = "Status")
+
+p4 <- ggplot(df, aes(x = person_emp_length, y = loan_amnt, color = loan_status)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  scale_color_manual(values = c("No Default" = "steelblue", "Default" = "firebrick")) +
+  labs(title = "Employment Length vs Loan Amount", color = "Status")
+
+p5 <- ggplot(df, aes(x = cb_person_cred_hist_length, y = loan_amnt, color = loan_status)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  scale_color_manual(values = c("No Default" = "steelblue", "Default" = "firebrick")) +
+  labs(title = "Credit History vs Loan Amount", color = "Status")
+
+p6 <- ggplot(df, aes(x = person_age, y = loan_amnt, color = loan_status)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  scale_color_manual(values = c("No Default" = "steelblue", "Default" = "firebrick")) +
+  labs(title = "Age vs Loan Amount", color = "Status")
+
+(p1 | p2 | p3) /
+  (p4 | p5 | p6) +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "bottom")
+
+```
+
+```{r}
+
+corr_matrix <- cor(df[, sapply(df, is.numeric)], use = "complete.obs")
+
+corrplot(corr_matrix,
+         method = "color",
+         type = "upper",
+         tl.col = "black",
+         tl.srt = 45,
+         addCoef.col = "black",   # show values
+         number.cex = 0.7)        # size of numbers
+```
+
+```{r}
+
+p1 <- ggplot(df, aes(x = person_age, fill = loan_status)) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("No Default" = "steelblue", "Default" = "firebrick")) +
+  labs(title = "Age Distribution by Default Status", x = "Age", fill = "Status")
+
+p2 <- ggplot(df, aes(x = person_income, fill = loan_status)) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("No Default" = "steelblue", "Default" = "firebrick")) +
+  labs(title = "Income Distribution by Default Status", x = "Income", fill = "Status")
+
+p3 <- ggplot(df, aes(x = person_emp_length, fill = loan_status)) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("No Default" = "steelblue", "Default" = "firebrick")) +
+  labs(title = "Employment Length by Default Status", x = "Employment Length", fill = "Status")
+
+p4 <- ggplot(df, aes(x = loan_amnt, fill = loan_status)) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("No Default" = "steelblue", "Default" = "firebrick")) +
+  labs(title = "Loan Amount by Default Status", x = "Loan Amount", fill = "Status")
+
+p5 <- ggplot(df, aes(x = loan_int_rate, fill = loan_status)) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("No Default" = "steelblue", "Default" = "firebrick")) +
+  labs(title = "Interest Rate by Default Status", x = "Interest Rate", fill = "Status")
+
+p6 <- ggplot(df, aes(x = loan_percent_income, fill = loan_status)) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("No Default" = "steelblue", "Default" = "firebrick")) +
+  labs(title = "Loan Percent Income by Default Status", x = "Percent Income", fill = "Status")
+
+p7 <- ggplot(df, aes(x = cb_person_cred_hist_length, fill = loan_status)) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("No Default" = "steelblue", "Default" = "firebrick")) +
+  labs(title = "Credit History Length by Default Status", x = "Credit History Length", fill = "Status")
+
+(p1 | p2 | p3) /
+  (p4 | p5 | p6) /
+  (p7) +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "bottom")
+
+```
+
+```{r}
+
+num_df <- df[, sapply(df, is.numeric)]
+num_df$loan_status <- as.integer(df$loan_status == "Default")
+
+cors <- cor(num_df, use = "complete.obs")[, "loan_status"]
+cors <- sort(cors[names(cors) != "loan_status"], decreasing = TRUE)
+cors_df <- data.frame(variable = names(cors), correlation = cors)
+
+ggplot(cors_df, aes(x = reorder(variable, correlation), y = correlation, fill = correlation > 0)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c("TRUE" = "firebrick", "FALSE" = "steelblue")) +
+  coord_flip() +
+  labs(title = "Variable Correlation with Loan Default",
+       x = "Variable", y = "Correlation", fill = "Positive") +
+  theme_minimal()
+
+```
+```{r}
+
+cap_outliers <- function(x) {
+  q1 <- quantile(x, 0.25, na.rm = TRUE)
+  q3 <- quantile(x, 0.75, na.rm = TRUE)
+  iqr <- q3 - q1
+  pmin(pmax(x, q1 - 1.5 * iqr), q3 + 1.5 * iqr)
+}
+
+numeric_cols <- names(df)[sapply(df, is.numeric)]
+df[numeric_cols] <- lapply(df[numeric_cols], cap_outliers)
+
+miss_summary <- colSums(is.na(df))
+miss_pct <- round(miss_summary / nrow(df) * 100, 2)
+print(miss_pct)
+
+```
+
+```{r}
+
+grade_map <- c("A" = 1, "B" = 2, "C" = 3, "D" = 4, "E" = 5, "F" = 6, "G" = 7)
+df$loan_grade_encoded <- grade_map[df$loan_grade]
+
+df$cb_person_default_on_file_encoded <- ifelse(df$cb_person_default_on_file == "Y", 1, 0)
+
+df$home_MORTGAGE <- ifelse(df$person_home_ownership == "MORTGAGE", 1, 0)
+df$home_OWN      <- ifelse(df$person_home_ownership == "OWN", 1, 0)
+df$home_OTHER    <- ifelse(df$person_home_ownership == "OTHER", 1, 0)
+
+df$intent_DEBTCONSOLIDATION <- ifelse(df$loan_intent == "DEBTCONSOLIDATION", 1, 0)
+df$intent_HOMEIMPROVEMENT   <- ifelse(df$loan_intent == "HOMEIMPROVEMENT", 1, 0)
+df$intent_MEDICAL           <- ifelse(df$loan_intent == "MEDICAL", 1, 0)
+df$intent_PERSONAL          <- ifelse(df$loan_intent == "PERSONAL", 1, 0)
+df$intent_VENTURE           <- ifelse(df$loan_intent == "VENTURE", 1, 0)
+
+df <- df[, !sapply(df, is.character)]
+
+df$person_emp_length[is.na(df$person_emp_length)] <- median(df$person_emp_length, na.rm = TRUE)
+df$loan_int_rate[is.na(df$loan_int_rate)]         <- median(df$loan_int_rate, na.rm = TRUE)
+
+
+```
+
+```{r}
+
+df$loan_status <- ifelse(df$loan_status == "Default", 1, 0)
+
+set.seed(123)
+train_idx <- sample(1:nrow(df), size = 0.8 * nrow(df))
+train <- df[train_idx, ]
+test  <- df[-train_idx, ]
+
+train_x <- as.matrix(train[, !names(train) %in% "loan_status"])
+train_y <- train$loan_status
+
+test_x  <- as.matrix(test[, !names(test) %in% "loan_status"])
+test_y  <- test$loan_status
+
+dtrain  <- xgb.DMatrix(data = train_x, label = train_y)
+dtest   <- xgb.DMatrix(data = test_x,  label = test_y)
+
+```
+
+
+```{r}
+
+params <- list(
+  objective        = "binary:logistic",
+  eval_metric      = "auc",
+  eta              = 0.1,
+  max_depth        = 6,
+  subsample        = 0.8,
+  colsample_bytree = 0.8,
+  min_child_weight = 5,
+  gamma            = 1
+)
+
+```
+
+```{r}
+
+evals <- list(train = dtrain, eval = dtest)
+
+xgb_model <- xgb.train(
+  params                = params,
+  data                  = dtrain,
+  nrounds               = 500,
+  evals                 = evals,
+  early_stopping_rounds = 30,
+  verbose               = 1
+)
+
+```
+
+```{r}
+
+pred_prob  <- predict(xgb_model, dtest)
+pred_class <- ifelse(pred_prob > 0.5, 1, 0)
+
+confusionMatrix(factor(pred_class), factor(test_y), positive = "1")
+roc_obj <- roc(test_y, pred_prob)
+cat("AUC:", auc(roc_obj), "\n")
+
+plot(roc_obj, col = "steelblue", main = "ROC Curve - XGBoost")
+
+importance_matrix <- xgb.importance(model = xgb_model)
+xgb.plot.importance(importance_matrix, top_n = 15, main = "Top 15 Features")
+
+
+```
+
+
+```{r}
+
+pred_prob  <- predict(xgb_model, dtest)
+pred_class <- ifelse(pred_prob > 0.3, 1, 0)
+
+confusionMatrix(factor(pred_class), factor(test_y), positive = "1")
+roc_obj <- roc(test_y, pred_prob)
+cat("AUC:", auc(roc_obj), "\n")
+
+plot(roc_obj, col = "steelblue", main = "ROC Curve - XGBoost")
+
+importance_matrix <- xgb.importance(model = xgb_model)
+xgb.plot.importance(importance_matrix, top_n = 15, main = "Top 15 Features")
+
+```
+
+
+```{r}
+
+roc_obj   <- roc(test_y, pred_prob)
+youden    <- coords(roc_obj, "best", best.method = "youden")
+print(youden)
+
+plot(roc_obj, col = "steelblue", main = "ROC Curve - XGBoost")
+points(youden$specificity, youden$sensitivity, col = "firebrick", pch = 19, cex = 1.5)
+
+pred_class_optimal <- ifelse(pred_prob > 0.192, 1, 0)
+confusionMatrix(factor(pred_class_optimal), factor(test_y), positive = "1")
+
+```
+
+
+```{r}
+
+set.seed(123)
+n_simulations <- 1000
+n_test        <- nrow(test_x)
+mc_preds      <- matrix(NA, nrow = n_test, ncol = n_simulations)
+
+for (i in 1:n_simulations) {
+  
+  noise          <- matrix(rnorm(n_test * ncol(test_x), mean = 0, sd = 0.01),
+                           nrow = n_test, ncol = ncol(test_x))
+  test_x_perturb <- test_x + noise
+
+  d_perturb       <- xgb.DMatrix(data = test_x_perturb)
+  mc_preds[, i]   <- predict(xgb_model, d_perturb)
+}
+
+mc_mean <- apply(mc_preds, 1, mean)
+mc_sd   <- apply(mc_preds, 1, sd)
+mc_cv   <- mc_sd / mc_mean  
+
+cat("Average prediction std dev:", round(mean(mc_sd), 4), "\n")
+cat("Max prediction std dev:", round(max(mc_sd), 4), "\n")
+cat("Average coefficient of variation:", round(mean(mc_cv), 4), "\n")
+
+```
+
+
+```{r}
+
+par(mfrow = c(1, 3))
+
+hist(mc_mean, breaks = 50, col = "steelblue",
+     main = "Mean Predicted Probabilities",
+     xlab = "Probability")
+
+hist(mc_sd, breaks = 50, col = "firebrick",
+     main = "Prediction Std Dev per Observation",
+     xlab = "Std Dev")
+
+plot(mc_mean, mc_sd, col = rgb(0.2, 0.4, 0.8, 0.3),
+     pch = 16, cex = 0.6,
+     main = "Uncertainty vs Predicted Probability",
+     xlab = "Mean Predicted Probability",
+     ylab = "Std Dev")
+abline(v = 0.192, col = "firebrick", lty = 2, lwd = 2)
+
+par(mfrow = c(1, 1))
+
+```
+
+
+```{r}
+
+uncertainty_df <- data.frame(
+  index    = 1:n_test,
+  mean     = mc_mean,
+  sd       = mc_sd,
+  cv       = mc_cv,
+  actual   = test_y
+)
+
+high_uncertainty <- uncertainty_df[mc_sd > quantile(mc_sd, 0.90), ]
+cat("High uncertainty observations:", nrow(high_uncertainty), "\n")
+
+cat("Default rate in high uncertainty group:", 
+    round(mean(high_uncertainty$actual), 3), "\n")
+
+cat("Default rate in full test set:", 
+    round(mean(test_y), 3), "\n")
+
+```
+
+
+```{r}
+
+plot(mc_mean, mc_sd,
+     col = ifelse(mc_mean > 0.15 & mc_mean < 0.25, "firebrick", 
+                  rgb(0.2, 0.4, 0.8, 0.3)),
+     pch  = 16, cex = 0.6,
+     main = "Prediction Uncertainty — Red = Near Threshold",
+     xlab = "Mean Predicted Probability",
+     ylab = "Std Dev")
+abline(v = 0.192, col = "black", lty = 2, lwd = 2)
+legend("topright", legend = c("Near threshold", "Stable"),
+       col = c("firebrick", "steelblue"), pch = 16)
+
+zone <- sum(mc_mean > 0.15 & mc_mean < 0.25)
+cat("Observations in threshold uncertainty zone:", zone, "\n")
+cat("As percentage of test set:", round(zone / n_test * 100, 2), "%\n")
+
+```
+
+
+```{r}
+
+zone_idx <- which(mc_mean > 0.15 & mc_mean < 0.25)
+zone_df  <- data.frame(
+  mean      = mc_mean[zone_idx],
+  sd        = mc_sd[zone_idx],
+  actual    = test_y[zone_idx]
+)
+
+cat("Default rate in zone:", round(mean(zone_df$actual), 3), "\n")
+cat("Avg std dev in zone:", round(mean(zone_df$sd), 3), "\n")
+cat("Zone defaulters missed at 0.192:", 
+    sum(zone_df$actual == 1 & zone_df$mean < 0.192), "\n")
+cat("Zone good borrowers rejected at 0.192:", 
+    sum(zone_df$actual == 0 & zone_df$mean >= 0.192), "\n")
+
+```
+
+
+```{r}
+
+decision <- ifelse(mc_mean < 0.15, "Approve",
+            ifelse(mc_mean > 0.25, "Reject",
+                   "Manual Review"))
+table(decision)
+
+flag <- ifelse(mc_sd > quantile(mc_sd, 0.90), "Flag", "Auto")
+table(flag)
+
+```
+
+```{r}
+
+cv_result <- xgb.cv(
+  params                = params,
+  data                  = dtrain,
+  nfold                 = 5,
+  nrounds               = 500,
+  early_stopping_rounds = 30,
+  verbose               = 1,
+  stratified            = TRUE
+)
+
+# results
+best_iter <- cv_result$best_iteration
+cat("Best iteration:", best_iter, "\n")
+cat("CV AUC mean:", round(cv_result$evaluation_log$test_auc_mean[best_iter], 4), "\n")
+cat("CV AUC std dev:", round(cv_result$evaluation_log$test_auc_std[best_iter], 4), "\n")
+cat("95% CI: [",
+    round(cv_result$evaluation_log$test_auc_mean[best_iter] -
+          1.96 * cv_result$evaluation_log$test_auc_std[best_iter], 4), ",",
+    round(cv_result$evaluation_log$test_auc_mean[best_iter] +
+          1.96 * cv_result$evaluation_log$test_auc_std[best_iter], 4), "]\n")
+
+```
+
+```{r}
+
+# best iteration from CV
+best_iter <- which.max(cv_result$evaluation_log$test_auc_mean)
+cat("Best iteration:", best_iter, "\n")
+cat("CV AUC mean:", round(cv_result$evaluation_log$test_auc_mean[best_iter], 4), "\n")
+cat("CV AUC std dev:", round(cv_result$evaluation_log$test_auc_std[best_iter], 4), "\n")
+cat("95% CI: [",
+    round(cv_result$evaluation_log$test_auc_mean[best_iter] -
+          1.96 * cv_result$evaluation_log$test_auc_std[best_iter], 4), ",",
+    round(cv_result$evaluation_log$test_auc_mean[best_iter] +
+          1.96 * cv_result$evaluation_log$test_auc_std[best_iter], 4), "]\n")
+
+# train final model using best_iter from CV instead of early stopping
+xgb_model_final <- xgb.train(
+  params  = params,
+  data    = dtrain,
+  nrounds = best_iter
+)
+
+# evaluate on test set
+pred_prob_final  <- predict(xgb_model_final, dtest)
+pred_class_final <- ifelse(pred_prob_final > 0.192, 1, 0)
+
+confusionMatrix(factor(pred_class_final), factor(test_y), positive = "1")
+
+roc_obj_final <- roc(test_y, pred_prob_final)
+cat("Final AUC:", auc(roc_obj_final), "\n")
+
+```
+
+```{r}
+
+cat("CV AUC mean:", round(cv_result$evaluation_log$test_auc_mean[best_iter], 4), "\n")
+cat("CV AUC std dev:", round(cv_result$evaluation_log$test_auc_std[best_iter], 4), "\n")
+cat("95% CI: [",
+    round(cv_result$evaluation_log$test_auc_mean[best_iter] -
+          1.96 * cv_result$evaluation_log$test_auc_std[best_iter], 4), ",",
+    round(cv_result$evaluation_log$test_auc_mean[best_iter] +
+          1.96 * cv_result$evaluation_log$test_auc_std[best_iter], 4), "]\n")
+
+```
+
+
+```{r}
+
+# create calibration data
+cal_df <- data.frame(
+  pred_prob = pred_prob_final,
+  actual    = test_y
+)
+
+# bin predictions into deciles
+cal_df$bin <- cut(cal_df$pred_prob, 
+                  breaks = seq(0, 1, by = 0.1), 
+                  include.lowest = TRUE)
+
+# calculate mean predicted vs mean actual per bin
+cal_summary <- aggregate(cbind(pred_prob, actual) ~ bin, 
+                         data = cal_df, 
+                         FUN = mean)
+
+# plot
+plot(cal_summary$pred_prob, cal_summary$actual,
+     xlim = c(0, 1), ylim = c(0, 1),
+     xlab = "Mean Predicted Probability",
+     ylab = "Mean Actual Default Rate",
+     main = "Calibration Plot — XGBoost",
+     pch  = 19, col = "steelblue", cex = 1.5)
+abline(0, 1, col = "firebrick", lty = 2, lwd = 2)
+legend("topleft", legend = c("Model", "Perfect Calibration"),
+       col = c("steelblue", "firebrick"), pch = c(19, NA), lty = c(NA, 2))
+
+```
